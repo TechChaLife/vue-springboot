@@ -1,0 +1,209 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper 
+PUBLIC "-//mybatis.org//DTD mapper 3.0//EN" 
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper>
+ 	<select id="countUser" parameterType="com.alibaba.fastjson.JSONObject">
+ 		select count(id) from users where u.delete_status='1'
+ 	</select>
+ 	
+ 	<select id="listUser" resultMap="userMap" parameterType="com.alibaba.fastjson.JSONObject">
+ 		SELECT
+			u.*, r.role_name roleName,
+			CONCAT(
+				p.menu_name,
+				p.permission_name
+			) permissionName
+		FROM
+			(
+				SELECT
+					id userId,
+					nickname nickname,
+					username username,
+					role_id roleId,
+					delete_status deleteStatus
+					date_format(
+						create_time,
+						'%Y.%m.%d %T'
+					) createTime,
+					date_format(
+						update_time,
+						'%Y.%m.%d %T'
+					) updateTime
+				FROM
+					users
+				WHERE delete_status = '1' ORDER BY id
+				LIMIT #{offset}, #{pageRow}
+			) u
+		LEFT JOIN roles r ON u.roleId = r.id
+		LEFT JOIN roles_permission rp ON rp.role_id = r.id
+		LEFT JOIN permission p ON p.id = rp.permission_id
+		ORDER BY
+			u.id;
+ 	</select>
+ 	
+ 	<resultMap type="com.xzit.util.OneToManyMap" id="userMap">
+ 		<id column="id" property="userId"/>
+ 		<result column="nickname" property="nickname"/>
+ 		<result column="username" property="username"/>
+ 		<result column="roleId" property="roleId"/>
+ 		<result column="roleName" property="roleName"/>
+ 		<result column="createTime" property="createTime" />
+ 		<result column="updateTime" property="updateTime"/>
+ 		<result column="deleteStatus" property="deleteStatus"/>
+ 		<collection property="permissionList" ofType="String">
+ 			<id column="permissionName" property="permissionName"/>
+ 		</collection>
+ 	</resultMap>
+ 	
+ 	<select id="getAllRoles" resultType="com.alibaba.fastjson.JSONObject">
+ 		select r.id id,r.role_name roleName from roles r where r.delete_status='1'
+ 	</select>
+ 	
+ 	<select id="usernameValidate" resultType="Integer">
+ 		select count(id) from users where username=#{username} and delete_status='1'
+ 	</select>
+ 	
+ 	<insert id="addUser" resultType="Integer">
+ 		INSERT INTO users (
+			username,
+			PASSWORD,
+			nickname,
+			role_id
+		)
+		VALUES
+			(
+				#{id},
+				#{username},
+				#{password},
+				#{nickname},
+				#{roleId}
+			)
+ 	</insert>
+ 	
+ 	<update id="updateUser">
+ 		update users 
+		<set>
+			<if test="password !='' and password !=null">password = #{password}</if>
+			role_id = #{roleId},
+			nickname = #{nickname}
+		</set>
+		<where>role_id=#{roleId}</where>
+ 	</update>
+ 	
+ 	<select id="listRole" resultMap="roleMap">
+ 		SELECT
+			r.id roleId,
+			r.role_name roleName,
+			u.id userId,
+			u.nickname nickname,
+			p.id permissionId,
+			p.menu_code menuCode,
+			p.menu_name menuName,
+			p.permission_name permissionName
+		FROM
+			roles r
+		LEFT join users u on r.id = u.role_id and u.delete_status = '1'
+		LEFT JOIN roles_permission rp ON r.id = rp.role_id and rp.delete_status='1'
+		LEFT JOIN permission p ON p.id = rp.permission_id
+		where r.delete_status ='1'
+		ORDER by r.id,p.id
+ 	</select>
+ 	
+ 	<resultMap type="com.xzit.util.OneToManyMap" id="roleMap">
+ 		<id column="roleId" property="roleId"/>
+ 		<result column="roleName" property="roleName"/>
+ 		<collection property="users" ofType="com.alibaba.fastjson.JSONObject">
+ 			<id column="userId" property="userId"/>
+ 			<result column="nickname" property="nickname"/>
+ 		</collection>
+ 		<collection property="menus" ofType="com.xzit.util.OneToManyMap">
+ 			<id column="menuCode" property="menuCode"/>
+ 			<result column="menuName" property="menuName"/>
+ 			<collection property="permissions" ofType="com.alibaba.fastjson.JSONObject">
+ 				<id column="permissionId" property="permissionId"/>
+ 				<result column="permissionName" property="permissionName"/>
+ 			</collection>
+ 		</collection>
+ 	</resultMap>
+ 	
+ 	<select id="listAllPermissions" resultMap="permissionMap">
+ 		SELECT
+			p.id id,
+			p.menu_name menuName,
+			p.permission_name permissionName,
+			p.required_permission requiredPermission
+		FROM
+			permission p
+ 	</select>
+ 	
+ 	<resultMap type="com.xzit.util.OneToManyMap" id="permissionMap">
+ 		<id column="menuName" property="menuName"/>
+ 		<collection property="permissions" ofType="com.alibaba.fastjson.JSONObject">
+ 			<id column="id" property="id"/>
+ 			<result column="permissionName" property="permissionName"/>
+ 			<result column="requiredPermission" property="requiredPermission"/>
+ 		</collection>
+ 	</resultMap>
+ 	
+ 	<insert id="insertRole" parameterType="String">
+ 		insert into roles (role_name) values (#{roleName})
+ 	</insert>
+ 	
+ 	<insert id="insertRolePermission">
+ 		insert into roles_permission (role_id, permission_id)
+ 		values 
+ 		<foreach collection="permissions" item="element" index="index" separator=",">
+ 			(#{roleId}, #{element})
+ 		</foreach>
+ 	</insert>
+ 	
+ 	<update id="removePermission">
+ 		update roles_permission set delete_status ='2' where role_id = #{roleId} and permission_id in (
+ 		<foreach collection="permissions" item="element" index="index" separator=",">
+ 			#{element}
+ 		</foreach>
+ 		)
+ 	</update>
+ 	
+ 	<update id="updateRoleName">
+ 		update roles set role_name = #{roleName} where role_id = #{roleId}
+ 	</update>
+ 	
+ 	<select id="getRoleAllInfo" resultMap="allRole">
+ 		SELECT
+			r.id roleId,
+			r.role_name roleName,
+			u.id userId,
+			p.id permissionId
+		FROM
+			roles r
+		LEFT JOIN users u on r.id = u.role_id and u.delete_status = '1'
+		LEFT JOIN roles_permission rp ON r.id = rp.role_id and rp.delete_status = '1'
+		LEFT JOIN permission p ON p.id = rp.permission_id
+		WHERE
+			r.id = #{roleId}
+ 	</select>
+ 	
+ 	<resultMap type="com.xzit.util.OneToManyMap" id="allRole">
+ 		<id column="roleId" property="roleId"/>
+ 		<result column="roleName" property="roleName"/>
+ 		<collection property="users" ofType="com.alibaba.fastjson.JSONObject">
+ 			<id column="userId" property="userId"/>
+ 		</collection>
+ 		<collection property="permissionId" ofType="Integer">
+ 			<id column="permissionId" property="permissonId"/>
+ 		</collection>
+ 	</resultMap>
+ 	
+ 	<update id="removeRole">
+ 		update roles set delete_status = '2' where id = #{roleId}
+ 	</update>
+ 	
+ 	<update id="removeRoleAllPermission">
+ 		update roles_permission set delete_status = '2' where role_id = #{roleId}
+ 	</update>
+ 	
+ 	
+ 	
+</mapper>

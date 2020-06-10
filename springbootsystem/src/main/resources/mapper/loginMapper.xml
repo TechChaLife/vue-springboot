@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper 
+PUBLIC "-//mybatis.org//DTD mapper 3.0//EN" 
+"http://mybatis.org/dtd/mybatis-3-mapper.dtd" >
+<mapper namespace="com.xzit.dao">
+
+	<select id="getUser" resultType="com.alibaba.fastjson.JSONObject">
+		select u.id userId, u.username username, u.password password, u.nickname nickName 
+		from users u
+		where u.username = #{username}
+			and u.password = #{password}
+			and u.delete_status = '1'
+	</select>
+  
+</mapper>
